@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Outputs and experiments
+outputs/
+wandb/
+checkpoints/
+
+# System files
+.DS_Store
+Thumbs.db
