@@ -20,6 +20,15 @@ outputs/
 wandb/
 checkpoints/
 
+# Large data and model files (too big for GitHub)
+data/raw/
+data/processed/
+data/*.csv
+data/*.xlsx
+models/trained/
+models/pretrained/
+notebooks/*.ipynb_checkpoints/
+
 # System files
 .DS_Store
 Thumbs.db
