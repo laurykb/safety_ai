@@ -1,39 +1,44 @@
 """Configuration des chemins et constantes du projet."""
 from pathlib import Path
 
-# =============================================================================
-# PATHS
-# =============================================================================
-
 ROOT_DIR: Path = Path(__file__).resolve().parents[2]
 DATA_DIR: Path = ROOT_DIR / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
 PROCESSED_DATA_DIR: Path = DATA_DIR / "processed"
+EMBEDDING_CACHE_DIR: Path = PROCESSED_DATA_DIR / "embedding_cache"
 MODELS_DIR: Path = ROOT_DIR / "models"
 TRAINED_MODELS_DIR: Path = MODELS_DIR / "trained"
 PRETRAINED_MODELS_DIR: Path = MODELS_DIR / "pretrained"
 OUTPUTS_DIR: Path = ROOT_DIR / "outputs"
 REPORTS_DIR: Path = OUTPUTS_DIR / "reports"
-ERROR_REPORTS_DIR: Path = OUTPUTS_DIR / "error_reports"
-ERROR_ANALYSIS_DIR: Path = OUTPUTS_DIR / "error_analysis"
 ANALYSIS_DIR: Path = OUTPUTS_DIR / "analysis"
-ANALYSIS_BY_EMBEDDING_DIR: Path = OUTPUTS_DIR / "analysis_by_embedding"
-ANALYSIS_PROJECT_DIR: Path = OUTPUTS_DIR / "analysis_project"
 EXPERIMENTS_DIR: Path = OUTPUTS_DIR / "experiments"
-CHECKPOINTS_DIR: Path = OUTPUTS_DIR / "checkpoints"
-WANDB_DIR: Path = OUTPUTS_DIR / "wandb"
+MLFLOW_DIR: Path = OUTPUTS_DIR / "mlruns"
+
+
+def get_mlflow_tracking_uri() -> str:
+    """URI MLflow pour tracking local (file://)."""
+    return MLFLOW_DIR.resolve().as_uri()
 
 # =============================================================================
 # DATASETS
 # =============================================================================
+# Fichiers produits par: python run.py research-download
+# Format attendu: colonnes [text, type] (type 0/1 binaire)
+# Structure simplifiée: research/ pour CB1 et sarcasm (train/test), plats pour le reste
+RESEARCH_CB1_DIR: Path = RAW_DATA_DIR / "research" / "cyberbullying_cb1"
+RESEARCH_SARCASM_DIR: Path = RAW_DATA_DIR / "research" / "sarcasm_twitter"
 
-DATASET_FILES: list[str] = [
-    "cyberbullying_tweets.csv",
-    "toxicity_parsed_dataset.csv",
-    "aggression_parsed_dataset.csv",
+DATA_PATHS: list[Path] = [
+    RESEARCH_CB1_DIR / "train.csv",
+    RAW_DATA_DIR / "cb2.csv",
+    RESEARCH_SARCASM_DIR / "train.csv",
+    RAW_DATA_DIR / "wiki_toxic.csv",
+    RAW_DATA_DIR / "hatexplain.csv",
 ]
 
-DATA_PATHS: list[Path] = [RAW_DATA_DIR / f for f in DATASET_FILES]
+# Dataset unifié (fusion de tous les datasets téléchargés)
+UNIFIED_TRAIN_PATH: Path = RAW_DATA_DIR / "unified" / "train.csv"
 
 PRETRAINED_BERT_DIR: Path = PRETRAINED_MODELS_DIR / "my_finetuned_bert"
 PRETRAINED_ROBERTA_DIR: Path = PRETRAINED_MODELS_DIR / "my_finetuned_roberta"

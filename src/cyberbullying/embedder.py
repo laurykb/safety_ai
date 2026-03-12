@@ -1,22 +1,26 @@
-"""Méthodes d'embedding pour transformer le texte en vecteurs.
+"""Méthodes d'embedding pour transformer le texte en vecteurs."""
 
-Structure du module :
-1. Configuration & Types
-2. Helpers (Agrégation & Parallélisme)
-3. Frequency Embeddings (TF-IDF, BoW)
-4. Word Embeddings (Word2Vec, GloVe)
-5. Sentence Embeddings (BERT)
-"""
-
+import hashlib
 import logging
 import multiprocessing
 import pickle
 from collections import Counter
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
+
+
+def _get_cache_dir() -> Path:
+    try:
+        from cyberbullying.config import EMBEDDING_CACHE_DIR
+        return EMBEDDING_CACHE_DIR
+    except ImportError:
+        return Path(__file__).resolve().parents[2] / "data" / "processed" / "embedding_cache"
+
+
 from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
@@ -40,6 +44,15 @@ class UnknownMethodError(EmbeddingError):
 
 AggregationMethod = Literal["mean", "max", "min", "median", "sum", "mean_top_3"]
 EmbeddingMethod = Literal["tfidf", "bow", "word2vec", "glove", "bert", "roberta"]
+
+
+def _embedding_cache_key(texts: list[str], method: str, **params) -> str:
+    """Clé de cache déterministe pour embeddings."""
+    h = hashlib.sha256()
+    for t in texts:
+        h.update(str(t).encode("utf-8", errors="replace"))
+    h.update(f"{method}_{params}".encode())
+    return h.hexdigest()[:32]
 
 
 # =============================================================================
@@ -68,16 +81,16 @@ def _aggregate_vectors(
 
     if method == "mean":
         return np.mean(vectors, axis=0)
-    
+
     if method == "sum":
         return np.sum(vectors, axis=0)
-    
+
     if method == "max":
         return np.max(vectors, axis=0)
-    
+
     if method == "min":
         return np.min(vectors, axis=0)
-    
+
     if method == "median":
         return np.median(vectors, axis=0)
 
@@ -114,7 +127,7 @@ def _worker_word_embedding(
         return np.zeros(vector_size, dtype=np.float32)
 
     tokens = text.lower().split()
-    
+
     # Récupération des vecteurs (compatible dict et Gensim KeyedVectors)
     vectors_list = []
     for word in tokens:
@@ -286,7 +299,7 @@ def word2vec_embedding(
         raise MissingDependencyError("pip install gensim") from e
 
     tokenized = [text.split() for text in texts]
-    
+
     # Entraînement
     model = Word2Vec(
         sentences=tokenized,
@@ -299,10 +312,10 @@ def word2vec_embedding(
 
     # Inférence Parallélisée (Unifiée avec GloVe)
     results = Parallel(n_jobs=-1, backend="threading")(
-        delayed(_worker_word_embedding)(text, model.wv, method, vector_size) 
+        delayed(_worker_word_embedding)(text, model.wv, method, vector_size)
         for text in texts
     )
-    
+
     return np.array(results)
 
 
@@ -347,14 +360,14 @@ def _build_cooccurrence_matrix_fast(texts: list[str]):
         Tuple (Matrice co-occurrence, Vocabulaire).
     """
     vectorizer = CountVectorizer(
-        min_df=2, 
-        max_df=0.95, 
+        min_df=2,
+        max_df=0.95,
         token_pattern=r"(?u)\b\w+\b",
         stop_words='english'
     )
     X = vectorizer.fit_transform(texts)
     vocab = vectorizer.vocabulary_
-    
+
     cooc_matrix = (X.T * X)
     cooc_matrix.setdiag(0)
     return cooc_matrix, vocab
@@ -393,14 +406,14 @@ def train_glove_model(
     logger.info("Entraînement GloVe (Mittens)...")
     glove = GloVe(n=vector_size, max_iter=epochs, learning_rate=learning_rate)
     embeddings_matrix = glove.fit(cooc_matrix.toarray())
-    
+
     id2word = {i: w for w, i in vocab.items()}
     embeddings = {id2word[i]: embeddings_matrix[i] for i in range(vocab_size)}
 
     if save_path:
         with open(save_path, 'wb') as f:
             pickle.dump(embeddings, f)
-            
+
     return embeddings
 
 
@@ -417,7 +430,7 @@ def load_glove_model(path: str) -> dict[str, np.ndarray]:
     if path.endswith('.pkl'):
         with open(path, 'rb') as f:
             return pickle.load(f)
-            
+
     embeddings = {}
     with open(path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -448,19 +461,18 @@ def glove_embedding(
     Returns:
         Matrice d'embeddings.
     """
-    if retrain:
-        print(">>> Entraînement GloVe...")
+    if retrain or not glove_path:
+        # Pas de modèle pré-entraîné : entraînement sur le corpus (comportement Word2Vec)
+        print(">>> Entraînement GloVe (glove_path absent ou retrain=True)...")
         model = train_glove_model(texts, vector_size, save_path=save_path)
     else:
-        if not glove_path:
-            raise GlovePathRequiredError("glove_path requis si retrain=False")
         print(f">>> Chargement GloVe : {glove_path}...")
         model = load_glove_model(glove_path)
         vector_size = len(next(iter(model.values())))
 
     print(">>> Transformation (Parallèle)...")
     results = Parallel(n_jobs=-1, backend="threading")(
-        delayed(_worker_word_embedding)(text, model, method, vector_size) 
+        delayed(_worker_word_embedding)(text, model, method, vector_size)
         for text in texts
     )
     return np.array(results)
@@ -542,7 +554,7 @@ def train_bert_model(
 
     # DataLoader standard
     train_dataloader = DataLoader(train_examples, batch_size=batch_size, shuffle=True)
-    
+
     # Configuration de la Loss TSDAE
     train_loss = losses.DenoisingAutoEncoderLoss(model, decoder_name_or_path=model_name, tie_encoder_decoder=True)
 
@@ -555,7 +567,7 @@ def train_bert_model(
         optimizer_params={'lr': 3e-5},
         show_progress_bar=True
     )
-    
+
     if save_path:
         model.save(save_path)
     return model
@@ -601,15 +613,15 @@ def bert_embedding(
     if device == "cuda" and not torch.cuda.is_available():
         print("GPU non disponible. Utilisation du CPU.")
         device = "cpu"
-    
+
     # Charger le modele sur le device (GPU ou CPU)
     model = model.to(device)
-    
+
     print(f">>> Encodage BERT (Batch: {batch_size}, Device: {device})...")
     embeddings = model.encode(
-        texts, 
-        batch_size=batch_size, 
-        show_progress_bar=True, 
+        texts,
+        batch_size=batch_size,
+        show_progress_bar=True,
         convert_to_numpy=True,
         normalize_embeddings=True,
         device=device
@@ -694,15 +706,15 @@ def roberta_embedding(
     if device == "cuda" and not torch.cuda.is_available():
         print("GPU non disponible. Utilisation du CPU.")
         device = "cpu"
-    
+
     # Charger le modele sur le device (GPU ou CPU)
     model = model.to(device)
-    
+
     print(f">>> Encodage RoBERTa (Batch: {batch_size}, Device: {device})...")
     embeddings = model.encode(
-        texts, 
-        batch_size=batch_size, 
-        show_progress_bar=True, 
+        texts,
+        batch_size=batch_size,
+        show_progress_bar=True,
         convert_to_numpy=True,
         normalize_embeddings=True,
         device=device
@@ -746,38 +758,18 @@ def apply_roberta_embedding(
 # 6. UNIFIED INTERFACE
 # =============================================================================
 
-def embed_texts(
+def _embed_texts_impl(
     texts: list[str],
     method: EmbeddingMethod,
-    # Params communs
-    max_features: int = 5000,
-    ngram_range: tuple[int, int] = (1, 2),
-    # Params Word Vectors
-    glove_path: str | None = None,
-    vector_size: int = 100,
-    aggregation: AggregationMethod = "mean",
-    # Params Training
-    retrain: bool = False,
-    save_path: str | None = None
+    max_features: int,
+    ngram_range: tuple[int, int],
+    glove_path: str | None,
+    vector_size: int,
+    aggregation: AggregationMethod,
+    retrain: bool,
+    save_path: str | None,
 ) -> np.ndarray:
-    """
-    Interface unique pour toutes les méthodes d'embedding.
-
-    Args:
-        texts: Liste de textes.
-        method: Méthode ('tfidf', 'bow', 'word2vec', 'glove', 'bert', 'roberta').
-        max_features: (TF-IDF/BoW) Nombre max de features.
-        ngram_range: (TF-IDF/BoW) Taille des n-grammes.
-        glove_path: (GloVe) Chemin du modèle pré-entraîné.
-        vector_size: (W2V/GloVe) Dimension des vecteurs.
-        aggregation: (W2V/GloVe) Méthode d'agrégation.
-        retrain: (GloVe/BERT/RoBERTa) Réentraîner le modèle ?
-        save_path: (GloVe/BERT/RoBERTa) Chemin de sauvegarde.
-
-    Returns:
-        Matrice d'embeddings.
-    """
-    
+    """Implémentation réelle des embeddings (sans cache)."""
     if method == "tfidf":
         mat, _ = tfidf_embedding(texts, max_features, ngram_range)
         return mat
@@ -793,11 +785,73 @@ def embed_texts(
         return glove_embedding(
             texts, glove_path, aggregation, retrain, vector_size, save_path
         )
-        
+
     if method == "bert":
         return bert_embedding(texts, retrain=retrain, save_path=save_path)
-    
+
     if method == "roberta":
         return roberta_embedding(texts, retrain=retrain, save_path=save_path)
 
     raise UnknownMethodError(f"Méthode inconnue: {method}")
+
+
+def embed_texts(
+    texts: list[str],
+    method: EmbeddingMethod,
+    max_features: int = 5000,
+    ngram_range: tuple[int, int] = (1, 2),
+    glove_path: str | None = None,
+    vector_size: int = 100,
+    aggregation: AggregationMethod = "mean",
+    retrain: bool = False,
+    save_path: str | None = None,
+) -> np.ndarray:
+    """
+    Interface unique pour toutes les méthodes d'embedding (avec cache disque).
+
+    Args:
+        texts: Liste de textes.
+        method: Méthode ('tfidf', 'bow', 'word2vec', 'glove', 'bert', 'roberta').
+        max_features: (TF-IDF/BoW) Nombre max de features.
+        ngram_range: (TF-IDF/BoW) Taille des n-grammes.
+        glove_path: (GloVe) Chemin du modèle pré-entraîné.
+        vector_size: (W2V/GloVe) Dimension des vecteurs.
+        aggregation: (W2V/GloVe) Méthode d'agrégation.
+        retrain: (GloVe/BERT/RoBERTa) Réentraîner le modèle ? (désactive le cache)
+        save_path: (GloVe/BERT/RoBERTa) Chemin de sauvegarde.
+
+    Returns:
+        Matrice d'embeddings.
+    """
+    params = {
+        "max_features": max_features,
+        "ngram_range": ngram_range,
+        "glove_path": glove_path,
+        "vector_size": vector_size,
+        "aggregation": aggregation,
+    }
+    if not retrain:
+        cache_dir = _get_cache_dir()
+        key = _embedding_cache_key(texts, method, **params)
+        cache_path = cache_dir / f"{key}.pkl"
+        if cache_path.exists():
+            try:
+                with open(cache_path, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                pass
+
+    result = _embed_texts_impl(
+        texts, method, max_features, ngram_range,
+        glove_path, vector_size, aggregation, retrain, save_path,
+    )
+
+    if not retrain:
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "wb") as f:
+                pickle.dump(result, f)
+        except Exception:
+            pass
+
+    return result

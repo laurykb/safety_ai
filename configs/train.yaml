@@ -1,0 +1,34 @@
+# train
+
+experiment:
+  name: safety-ai-cyberbullying
+  seed: 42
+
+split:
+  test_size: 0.2
+  random_state: null  # null = utilise experiment.seed
+
+models:
+  logistic_regression:
+    C: 1.0
+    max_iter: 1000
+  random_forest:
+    n_estimators: 200
+    max_depth: null
+  svm:
+    C: 1.0
+    kernel: rbf
+  lightgbm:
+    n_estimators: 300
+    learning_rate: 0.05
+    verbose: -1
+  mlp:
+    hidden_layer_sizes: [128, 64]
+    max_iter: 300
+
+embeddings:
+  - tfidf
+  - bow
+  - word2vec
+  - glove
+  - bert

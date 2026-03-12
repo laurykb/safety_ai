@@ -1,34 +1,44 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
 
 # Virtual environments
 .venv/
 venv/
+env/
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Logs and temp files
+# Logs and temp
 *.log
 *.tmp
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Outputs and experiments
+# Outputs
 outputs/
 wandb/
 checkpoints/
+mlflow.db
 
-# Large data and model files (too big for GitHub)
+# Data and models (large files)
 data/raw/
 data/processed/
 data/*.csv
 data/*.xlsx
 models/trained/
 models/pretrained/
-notebooks/*.ipynb_checkpoints/
 
-# System files
+# System
 .DS_Store
 Thumbs.db
+*.swp

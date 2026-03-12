@@ -1,0 +1,24 @@
+# preprocessing
+
+columns:
+  text: text
+  label: type
+  text_aliases: [content, tweet, message]
+  label_aliases: [label, target, class]
+
+validation:
+  min_text_length: 3
+  max_text_length: 10000
+  required_columns: [text]
+  label_values: [0, 1]
+  drop_duplicates: true
+  drop_na_text: true
+
+cleaning:
+  lowercase: true
+  remove_urls: true
+  remove_mentions: true
+  remove_hashtags: false
+  remove_extra_whitespace: true
+  fix_unicode: true  # normalisation Unicode (ftfy si dispo)
+  emoji_handling: keep  # keep | remove | replace

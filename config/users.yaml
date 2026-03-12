@@ -1,0 +1,15 @@
+users:
+  admin:
+    password_hash: "$2b$12$2gxVRzlW2yoicfnxb3OCXOM8xVf4l306urM.q5564hbJqNfluII2K"  # admin123
+    role: admin
+    name: "Admin Safety AI"
+  user:
+    password_hash: "$2b$12$I/kwhVicPAQX42X36cJy7OHjzyviidjaiFbjm2t4ONk4NGGlUPitm"  # user123
+    role: user
+    name: "User Standard"
+
+# Paramètres anti-bot
+bot_check:
+  max_login_attempts: 5
+  lockout_minutes: 15
+  captcha_required: true

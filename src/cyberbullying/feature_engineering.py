@@ -1,6 +1,19 @@
-"""Fonctions d'extraction de features textuelles."""
+"""Fonctions d'extraction de features textuelles (convention top repos)."""
 import re
+
 import pandas as pd
+
+try:
+    import emoji
+    EMOJI_AVAILABLE = True
+except ImportError:
+    EMOJI_AVAILABLE = False
+
+try:
+    import ftfy
+    FTFY_AVAILABLE = True
+except ImportError:
+    FTFY_AVAILABLE = False
 
 # =============================================================================
 # TEXT METRICS
@@ -40,26 +53,67 @@ def count_capitals(text: str) -> int:
 # TEXT CLEANING
 # =============================================================================
 
-def clean_text(text: str) -> str:
+def _fix_unicode(text: str) -> str:
+    """Corrige encodage Unicode (ftfy)."""
+    if FTFY_AVAILABLE:
+        return ftfy.fix_text(text)
+    return text
+
+
+def _handle_emoji(text: str, replace_with_desc: bool = True) -> str:
+    """Gère les emojis : conversion en texte descriptif ou suppression."""
+    if not EMOJI_AVAILABLE:
+        # Fallback regex : supprime les caractères emoji (Unicode)
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map
+            "\U0001F1E0-\U0001F1FF"  # flags
+            "\U00002702-\U000027B0"
+            "\U000024C2-\U0001F251"
+            "]+",
+            flags=re.UNICODE,
+        )
+        return emoji_pattern.sub("", text)
+    if replace_with_desc:
+        return emoji.replace_emoji(text, replace="")
+    return emoji.demojize(text, delimiters=(" ", " "))
+
+
+def clean_text(
+    text: str,
+    fix_unicode: bool = True,
+    handle_emoji: bool = True,
+    keep_mentions_hashtags: bool = False,
+) -> str:
     """
-    Nettoie le texte : HTML, URLs, mentions, hashtags, puis lowercase.
+    Nettoie le texte (convention top repos : HTML, URLs, emojis, etc.).
 
     Args:
         text: Texte brut.
+        fix_unicode: Corriger encodage (ftfy).
+        handle_emoji: Gérer emojis (suppression ou conversion).
+        keep_mentions_hashtags: Si True, garde @USER et #HASHTAG comme tokens.
 
     Returns:
-        Texte nettoyé en minuscules, uniquement lettres.
+        Texte nettoyé en minuscules.
     """
-    text = re.sub(r"<.*?>", "", text)
+    if fix_unicode and FTFY_AVAILABLE:
+        text = ftfy.fix_text(text)
+    text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"https?://\S+", "", text)
-    text = re.sub(r"@\S+", "", text)
-    text = re.sub(r"#\S+", "", text)
-    text = re.sub(r"[^a-zA-Z]", " ", text).lower()
-    text = re.sub(r"\s+", " ", text).strip()
-
-    text = re.sub(r'\bRT\b', '', text)
-
-    
+    if keep_mentions_hashtags:
+        text = re.sub(r"@\S+", " @USER ", text)
+        text = re.sub(r"#\S+", " #HASHTAG ", text)
+    else:
+        text = re.sub(r"@\S+", "", text)
+        text = re.sub(r"#\S+", "", text)
+    if handle_emoji:
+        text = _handle_emoji(text, replace_with_desc=False)
+    text = re.sub(r"\bRT\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"[^a-zA-Z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).lower().strip()
     return text
 
 
@@ -89,5 +143,5 @@ def apply_feature_engineering(df: pd.DataFrame, *, column_name: str) -> pd.DataF
 
     # Keeps only if more than 3 words
     df = df[df[f"{prefix}_words"] > 3]
-    
+
     return df

@@ -82,7 +82,7 @@ def prepare_datasets(
     random_state: int = 42,
 ) -> tuple[CyberbullyingDataset, CyberbullyingDataset]:
     """Prépare les datasets d'entraînement et de validation."""
-    
+
     texts = df[text_column].astype(str).tolist()
     labels = df[label_column].astype(int).tolist()
 
@@ -119,6 +119,9 @@ def finetune_transformer(
         ignore_mismatched_sizes=True,
     )
 
+    # GPU par défaut (mixed precision si disponible)
+    use_fp16 = torch.cuda.is_available()
+
     # Configuration de l'entraînement
     training_args = TrainingArguments(
         output_dir=str(output_dir),
@@ -139,6 +142,7 @@ def finetune_transformer(
         greater_is_better=True,
         report_to="none",
         seed=42,
+        fp16=use_fp16,
     )
 
     # Créer le Trainer
@@ -165,13 +169,13 @@ def predict_with_finetuned(
     batch_size: int = 32,
     max_length: int = 128,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Prédictions avec un modèle fine-tuné."""
-    
+    """Prédictions avec un modèle fine-tuné (GPU si disponible)."""
+
     tokenizer = AutoTokenizer.from_pretrained(str(model_path))
     model = AutoModelForSequenceClassification.from_pretrained(str(model_path))
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    model = model.to(device)
     model.eval()
 
     all_predictions = []
