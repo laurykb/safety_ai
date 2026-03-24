@@ -1,12 +1,15 @@
-"""
-Définitions centralisées des modèles Safety AI.
-Source unique pour run_pipeline, run_embedding, streamlit_app.
-"""
-from __future__ import annotations
+"""Définitions centralisées des modèles.
 
+On regroupe ici les configs par défaut et les factories pour que
+run_pipeline, streamlit_app et les tests tirent tous depuis la même source.
+"""
+
+from __future__ import annotations
 from typing import Any
 
 DEFAULT_SEED = 42
+
+# Hyperparamètres par défaut — ajustés empiriquement sur nos datasets
 DEFAULT_PARAMS: dict[str, dict[str, Any]] = {
     "logistic_regression": {"C": 1.0, "max_iter": 1000},
     "random_forest": {"n_estimators": 200, "max_depth": None},
@@ -69,17 +72,21 @@ def build_model(model_key: str, params: dict[str, Any] | None = None, enable_pro
 
 
 def get_models_factory(config: dict[str, Any] | None = None) -> dict[str, callable]:
-    """Retourne un dict {model_key: callable} pour instanciation lazy."""
+    """
+    Retourne un dict {model_key: callable} pour instanciation lazy.
+
+    On utilise des closures pour que chaque appel de factory()
+    crée une nouvelle instance fraîche du modèle.
+    """
     models_cfg = (config or {}).get("models", {})
     seed = (config or {}).get("experiment", {}).get("seed", DEFAULT_SEED)
+
     factory = {}
 
     def _lr():
         p = models_cfg.get("logistic_regression", {})
         from sklearn.linear_model import LogisticRegression
-        return LogisticRegression(
-            C=p.get("C", 1.0), max_iter=p.get("max_iter", 1000), random_state=seed
-        )
+        return LogisticRegression(C=p.get("C", 1.0), max_iter=p.get("max_iter", 1000), random_state=seed)
 
     def _rf():
         p = models_cfg.get("random_forest", {})
@@ -122,6 +129,6 @@ def get_models_factory(config: dict[str, Any] | None = None) -> dict[str, callab
             )
         factory["lightgbm"] = _lgb
     except ImportError:
-        pass
+        pass  # LightGBM optionnel
 
     return factory
