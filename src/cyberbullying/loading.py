@@ -1,30 +1,28 @@
-"""Fonctions de chargement et nettoyage des datasets."""
-from pathlib import Path
+"""Chargement et nettoyage des datasets cyberbullying/sarcasme.
 
+Les datasets ont des formats très différents selon leur source (Kaggle, HuggingFace, etc.),
+donc la détection automatique des colonnes est nécessaire. On normalise tout vers
+un DataFrame avec deux colonnes : 'text' (str) et 'type' (0 ou 1).
+"""
+
+from pathlib import Path
 import pandas as pd
 
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
+
+# Custom exceptions pour avoir des messages d'erreur clairs
 
 class ColumnNotFoundError(ValueError):
-    """Colonne introuvable dans le dataset."""
-
+    """Colonne texte ou label introuvable dans le dataset."""
 
 class InvalidBinaryLabelError(ValueError):
-    """Les labels ne sont pas binaires (0/1)."""
-
+    """Les labels ne sont pas en 0/1 après conversion."""
 
 class DatasetColumnMismatchError(ValueError):
-    """Les colonnes des datasets ne correspondent pas."""
+    """Tentative de merger des DataFrames avec des colonnes différentes."""
 
-
-# =============================================================================
-# BINARY LOADING
-# =============================================================================
 
 def _read_data(path: str | Path) -> pd.DataFrame:
-    """Charge CSV ou Excel selon l'extension."""
+    """Lit CSV ou Excel selon l'extension du fichier."""
     path = Path(path)
     if path.suffix.lower() in {".xlsx", ".xls"}:
         return pd.read_excel(path)
@@ -39,30 +37,22 @@ def binary_load_data(
     n_samples: int | None = None,
 ) -> pd.DataFrame:
     """
-    Charge un dataset et retourne un DataFrame binaire (0/1).
+    Charge un dataset et retourne un DataFrame binaire normalisé.
 
-    Args:
-        path: Chemin vers le fichier CSV ou Excel.
-        text_col: Nom de la colonne texte (auto-détecté si None).
-        label_col: Nom de la colonne label (auto-détecté si None).
-        negative_class: Valeur mappée à 0, le reste à 1. Si None, suppose binaire.
-        n_samples: Nombre d'échantillons à charger. Si None, charge tous les échantillons.
+    Détecte automatiquement les colonnes texte/label si non spécifiées.
+    Supporte les formats CSV et Excel.
 
     Returns:
         DataFrame avec colonnes ['text', 'type'] où type vaut 0 ou 1.
-
-    Raises:
-        ColumnNotFoundError: Colonne spécifiée introuvable.
-        InvalidBinaryLabelError: Labels non binaires après traitement.
     """
     df = _read_data(path)
-
     text_col = _detect_text_column(df, text_col, path)
     label_col, negative_class = _detect_label_column(df, label_col, negative_class, path)
 
     df = df[[text_col, label_col]].copy()
     df.columns = ["text", "type"]
     df = df.dropna()
+
     if n_samples is not None and len(df) > 0:
         n = min(n_samples, len(df))
         df = df.sample(n=n)
@@ -78,17 +68,19 @@ def binary_load_data(
 
 
 def _detect_text_column(df: pd.DataFrame, text_col: str | None, path: str) -> str:
-    """Détecte ou valide la colonne texte (convention top repos)."""
+    """Détecte la colonne texte en testant les noms courants dans les datasets publics."""
     if text_col is not None:
         if text_col not in df.columns:
             raise ColumnNotFoundError(f"Colonne '{text_col}' introuvable dans {path}")
         return text_col
 
-    # Priorité selon conventions courantes (cyberbullying, sarcasm, etc.)
-    for col in ("tweet_text", "text", "response", "Text", "Summary", "Title", "Main_Narrative", "content", "message"):
+    # On teste dans l'ordre de priorité selon les datasets qu'on utilise
+    for col in ("tweet_text", "text", "response", "Text", "Summary", "Title",
+                "Main_Narrative", "content", "message"):
         if col in df.columns and df[col].dropna().astype(str).str.len().gt(3).any():
             return col
-    # Direct_Post pour datasets COVID (posts sociaux)
+
+    # Cas spécial pour certains datasets COVID
     if "Direct_Post_1" in df.columns and df["Direct_Post_1"].notna().any():
         return "Direct_Post_1"
 
@@ -101,7 +93,7 @@ def _detect_label_column(
     negative_class: str | None,
     path: str
 ) -> tuple[str, str | None]:
-    """Détecte ou valide la colonne label (cyberbullying, COVID misinfo, etc.)."""
+    """Détecte la colonne label et la valeur à mapper à 0 (classe négative)."""
     if label_col is not None:
         if label_col not in df.columns:
             raise ColumnNotFoundError(f"Colonne '{label_col}' introuvable dans {path}")
@@ -127,17 +119,12 @@ def _detect_label_column(
 
 
 def _convert_to_binary(series: pd.Series, negative_class: str | None) -> pd.Series:
-    """Convertit une série en binaire (0/1)."""
     if negative_class is not None:
         return series.apply(
             lambda x: 0 if str(x).strip().lower() == str(negative_class).strip().lower() else 1
         )
     return series.astype(int)
 
-
-# =============================================================================
-# SARCASM LOADING (shiv213, S3D, etc.)
-# =============================================================================
 
 def load_sarcasm_data(
     path: str | Path,
@@ -148,14 +135,11 @@ def load_sarcasm_data(
     """
     Charge un dataset sarcasme (format shiv213 ou similaire).
 
-    Colonnes attendues : response/tweet/text + label (SARCASM / NOT_SARCASM).
-    Retourne DataFrame avec ['text', 'type'] où type=1 si sarcasme, 0 sinon.
+    Les colonnes attendues sont response/tweet/text pour le texte
+    et label (SARCASM / NOT_SARCASM) pour le label.
 
-    Args:
-        path: Chemin vers train.csv ou test.csv (export download_research_datasets).
-        text_col: Colonne texte (auto: response, tweet_text, text).
-        label_col: Colonne label (auto: label).
-        n_samples: Limite d'échantillons. None = tous.
+    Returns:
+        DataFrame avec ['text', 'type'] où type=1 si sarcasme.
     """
     df = _read_data(path)
 
@@ -165,7 +149,7 @@ def load_sarcasm_data(
                 text_col = col
                 break
         if text_col is None:
-            raise ColumnNotFoundError(f"Aucune colonne texte (response, text, tweet) dans {path}")
+            raise ColumnNotFoundError(f"Aucune colonne texte dans {path}")
     elif text_col not in df.columns:
         raise ColumnNotFoundError(f"Colonne '{text_col}' introuvable dans {path}")
 
@@ -180,7 +164,6 @@ def load_sarcasm_data(
 
     s = df["raw_label"].astype(str).str.strip().str.upper()
     df["type"] = (s == "SARCASM").astype(int)
-
     df = df[["text", "type"]]
     df["text"] = df["text"].astype(str)
     df = df[df["text"].str.len().ge(5)].reset_index(drop=True)
@@ -191,23 +174,8 @@ def load_sarcasm_data(
     return df
 
 
-# =============================================================================
-# MERGE
-# =============================================================================
-
 def merge_datasets(datasets: list[pd.DataFrame]) -> pd.DataFrame:
-    """
-    Fusionne plusieurs datasets avec les mêmes colonnes.
-
-    Args:
-        datasets: Liste de DataFrames à fusionner.
-
-    Returns:
-        DataFrame concaténé avec index réinitialisé.
-
-    Raises:
-        DatasetColumnMismatchError: Colonnes différentes entre datasets.
-    """
+    """Fusionne plusieurs DataFrames. Lève une erreur si les colonnes diffèrent."""
     if not datasets:
         return pd.DataFrame()
 
