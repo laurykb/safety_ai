@@ -1,21 +1,36 @@
 # SafetyAI
 
-**Detection de cyberharcelement par apprentissage automatique.** Classification binaire de textes (cyberbullying / normal). Les donnees sarcasme sont traitees comme les autres CSV (input standard).
-
-## En bref
-
-SafetyAI combine plusieurs approches de detection de cyberbullying :
-
-- **Embeddings** : TF-IDF, BoW, Word2Vec, GloVe, BERT, RoBERTa
-- **Modeles** : Logistic Regression, Random Forest, SVM, LightGBM, MLP
-- **Fine-tuning** : Transformers (Hugging Face) pour classification
-- **Explainabilite** : LIME pour interpreter les predictions
-
-L'interface Streamlit permet de charger des donnees, configurer les embeddings, lancer l'entrainement, faire des predictions et consulter les metriques MLflow.
+**Projet scolaire — Telecom Paris**
+Détection de cyberharcèlement par apprentissage automatique, avec support du sarcasme et suivi MLflow.
 
 ---
 
-## Demarrage rapide
+## Contexte
+
+Ce projet a été réalisé dans le cadre d'un cours à Telecom Paris. L'objectif était de construire un système capable de détecter si une phrase s'apparente à du cyberharcèlement ou non, en s'appuyant sur des patterns appris lors d'un pré-entraînement.
+
+Le point de départ était un ensemble de datasets fournis par l'enseignant. J'ai ensuite étendu le projet dans deux directions :
+
+- **Multiplication des approches** : plutôt que de choisir un seul pipeline, j'ai combiné plusieurs méthodes d'embedding et de classification. Chaque combinaison (embedding × classifieur) constitue une route indépendante, ce qui permet de comparer les résultats et d'exploiter les forces de chaque approche.
+- **Extension au sarcasme** : les datasets initiaux ne couvraient pas le sarcasme. J'ai intégré des données spécifiques pour que le modèle puisse mieux distinguer une phrase sarcastique d'une insulte directe.
+
+Enfin, j'ai intégré **MLflow** pour suivre les métriques hardware (CPU, GPU, RAM) et les performances des modèles lors des entraînements.
+
+---
+
+## Ce que fait le projet
+
+- Classifie un texte en deux catégories : **cyberbullying** ou **normal**
+- Supporte plusieurs méthodes d'**embedding** : TF-IDF, BoW, Word2Vec, GloVe, BERT, RoBERTa
+- Supporte plusieurs **classifieurs** : Logistic Regression, Random Forest, SVM, LightGBM, MLP
+- Permet le **fine-tuning** de Transformers (Hugging Face) pour la classification
+- Intègre **LIME** pour l'explicabilité des prédictions
+- Suit les métriques via **MLflow** (F1, accuracy, CPU, GPU, RAM)
+- Propose une interface **Streamlit** pour tout piloter sans ligne de commande
+
+---
+
+## Démarrage rapide
 
 ```bash
 git clone <votre-repo>
@@ -24,21 +39,19 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Ouvrir [http://localhost:8501](http://localhost:8501). Authentification par defaut : `admin` / `admin123`. Pour desactiver : `AUTH_DISABLED=1`.
+Ouvrir [http://localhost:8501](http://localhost:8501). Authentification par défaut : `admin` / `admin123`. Pour désactiver : `AUTH_DISABLED=1`.
 
 ---
 
 ## Installation
 
-### Pre-requis
-
-- Python 3.11 ou superieur
+### Pré-requis
+- Python 3.11 ou supérieur
 - Windows 10/11, Linux ou macOS
 
 ### Environnement virtuel
 
 **Windows (PowerShell) :**
-
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
@@ -47,7 +60,6 @@ python run.py
 ```
 
 **Linux / macOS :**
-
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -56,16 +68,13 @@ python run.py
 ```
 
 ### GPU (CUDA)
-
-Par defaut, PyTorch utilise le CPU. Pour activer le GPU NVIDIA :
-
+Par défaut, PyTorch utilise le CPU. Pour activer le GPU NVIDIA :
 ```bash
 pip uninstall torch torchvision torchaudio -y
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
 ### Docker
-
 ```bash
 docker build -t safety-ai .
 docker run -p 8501:8501 -e AUTH_DISABLED=1 safety-ai
@@ -79,75 +88,74 @@ docker run -p 8501:8501 -e AUTH_DISABLED=1 safety-ai
 
 | Onglet | Description |
 |--------|-------------|
-| Datasets | Charger et visualiser les donnees (CSV/XLSX) |
-| Embeddings | Vue des modeles pretraines et entraines |
-| Operations | Etape 1 : telecharger datasets (cb1, cb2, sarcasm, wiki_toxic, hatexplain). Etapes 2-4 : doublons, embed, train. Pipeline complet. Selection des CSV pour chaque etape. |
-| Fine-tuning | Entrainer des modeles Transformers |
-| Inference | Evaluer un modele sur donnees deja traitees (df_*.csv) |
+| Datasets | Charger et visualiser les données (CSV/XLSX) |
+| Embeddings | Vue des modèles pré-entraînés et entraînés |
+| Operations | Étape 1 : télécharger datasets (cb1, cb2, sarcasm, wiki_toxic, hatexplain). Étapes 2-4 : doublons, embed, train. Pipeline complet. |
+| Fine-tuning | Entraîner des modèles Transformers |
+| Inference | Évaluer un modèle sur données déjà traitées (df_*.csv) |
 | Prediction | Tester des textes en direct |
-| Resultats | Metriques et comparaisons |
+| Résultats | Métriques et comparaisons |
 | MLflow | Suivi des runs (F1, accuracy, CPU, GPU, RAM) |
-| Parametres | Configuration globale |
+| Paramètres | Configuration globale |
 
 ### Ligne de commande
 
 ```bash
-python run.py                    # Lancer l'app (port 8501)
-python run.py --port 8502        # Port personnalise
-python run.py test               # Tests unitaires
-python run.py pipeline           # Pipeline end-to-end (charge, embed, train)
-python run.py pipeline 5000      # Pipeline avec 5000 echantillons
-python run.py research-download  # Telecharger tous les datasets
-python run.py embed tfidf 1000   # Embedding TF-IDF + train rapide
-python run.py aggregate          # Agreger rapports et graphiques
-python run.py check-duplicates   # Verifier doublons dans les datasets
+python run.py                        # Lancer l'app (port 8501)
+python run.py --port 8502            # Port personnalisé
+python run.py test                   # Tests unitaires
+python run.py pipeline               # Pipeline end-to-end (charge, embed, train)
+python run.py pipeline 5000          # Pipeline avec 5000 échantillons
+python run.py research-download      # Télécharger tous les datasets
+python run.py embed tfidf 1000       # Embedding TF-IDF + train rapide
+python run.py aggregate              # Agréger rapports et graphiques
+python run.py check-duplicates       # Vérifier doublons dans les datasets
 ```
 
-Pour telecharger des datasets specifiques en CLI : `python scripts/download_research_datasets.py --datasets cb1 cb2 sarcasm`.
+Pour télécharger des datasets spécifiques en CLI : `python scripts/download_research_datasets.py --datasets cb1 cb2 sarcasm`.
 
 ---
 
-## Donnees
+## Données
 
 Format attendu : CSV ou XLSX avec colonnes `text` et `type` (0 = normal, 1 = cyberbullying).
 
-La commande `research-download` ou l'etape 1 Operations genere :
-
+La commande `research-download` ou l'étape 1 Operations génère :
 - `research/cyberbullying_cb1/train.csv`, `test.csv`
 - `research/sarcasm_twitter/train.csv`
 - `cb2.csv`, `wiki_toxic.csv`, `hatexplain.csv`
 
-Placez vos fichiers dans `data/raw/` ou utilisez les chemins configurables dans l'onglet Parametres.
+Placez vos fichiers dans `data/raw/` ou utilisez les chemins configurables dans l'onglet Paramètres.
 
 ---
 
 ## Architecture
 
 ```
-Donnees (CSV/XLSX)
-       |
-       v
-  Preprocessing
-       |
-       v
-  Embeddings (TF-IDF | BERT | RoBERTa | ...)
-       |
-       v
-  Modele (sklearn | Transformer)
-       |
-       v
-  Prediction + Explainabilite (LIME)
+Données (CSV/XLSX)
+        |
+        v
+Preprocessing
+        |
+        v
+Embeddings (TF-IDF | BERT | RoBERTa | ...)
+        |
+        v
+Modèle (sklearn | Transformer)
+        |
+        v
+Prediction + Explicabilité (LIME)
 ```
 
 ## Pipeline vs Inference
 
 | | Pipeline (Operations) | Inference (onglet Test) |
 |---|----------------------|-------------------------|
-| **Role** | Cree les donnees traitees | Evalue un modele sur donnees existantes |
-| **Entree** | CSV bruts (data/raw/) | df_*.csv (data/processed/) |
-| **Sortie** | df_*.csv, rapports, modeles | Metriques affichees |
+| **Rôle** | Crée les données traitées | Évalue un modèle sur données existantes |
+| **Entrée** | CSV bruts (data/raw/) | df_*.csv (data/processed/) |
+| **Sortie** | df_*.csv, rapports, modèles | Métriques affichées |
 
-Le **pipeline** charge les CSV, applique l'embedding, entraine les modeles et genere df_*.csv. L'**inference** utilise ces fichiers pour evaluer un modele (train/test rapide). Lancer le pipeline en premier.
+Le **pipeline** charge les CSV, applique l'embedding, entraîne les modèles et génère df_*.csv. L'**inference** utilise ces fichiers pour évaluer un modèle (train/test rapide). Lancer le pipeline en premier.
 
 ---
 
@@ -155,38 +163,36 @@ Le **pipeline** charge les CSV, applique l'embedding, entraine les modeles et ge
 
 ```
 projet_IA_cyber/
-├── run.py                 # Point d'entree (python run.py)
-├── streamlit_app.py       # Application SafetyAI
+├── run.py                  # Point d'entrée (python run.py)
+├── streamlit_app.py        # Application SafetyAI
 ├── requirements.txt
 ├── app/
-│   ├── main.py            # Lancement Streamlit
-│   └── ui/                # Onglets (tab_datasets, tab_operations, ...)
+│   ├── main.py             # Lancement Streamlit
+│   └── ui/                 # Onglets (tab_datasets, tab_operations, ...)
 ├── configs/
-│   ├── train.yaml         # Config entrainement
+│   ├── train.yaml          # Config entraînement
 │   ├── preprocessing.yaml
 │   └── research.yaml
-├── src/cyberbullying/     # loading, embedder, models, finetune, inference
-├── scripts/               # run_pipeline, download_research_datasets, check_duplicates, etc.
+├── src/cyberbullying/      # loading, embedder, models, finetune, inference
+├── scripts/                # run_pipeline, download_research_datasets, check_duplicates, etc.
 ├── tests/
 └── docs/
 ```
 
 ---
 
-## Compatibilite
+## Compatibilité
 
 - **Python** : 3.11+
 - **OS** : Windows, Linux, macOS
-- **Chemins** : `pathlib.Path` pour compatibilite cross-platform
-- **Encodage** : UTF-8 recommande
+- **Chemins** : `pathlib.Path` pour compatibilité cross-platform
+- **Encodage** : UTF-8 recommandé
 
 ---
 
 ## Documentation
 
-- [docs/INTEGRATION_UI.md](docs/INTEGRATION_UI.md) - Pipeline vs Inference
-- [docs/AUDIT_FICHIERS.md](docs/AUDIT_FICHIERS.md) - Audit des fichiers
-- [docs/EVALUATION_MLOPS.md](docs/EVALUATION_MLOPS.md) - Evaluation MLOps (roadmap.sh)
-- [docs/EVALUATION_AI_ENGINEER.md](docs/EVALUATION_AI_ENGINEER.md) - Evaluation AI Engineer (roadmap.sh)
-
----
+- [docs/INTEGRATION_UI.md](docs/INTEGRATION_UI.md) — Pipeline vs Inference
+- [docs/AUDIT_FICHIERS.md](docs/AUDIT_FICHIERS.md) — Audit des fichiers
+- [docs/EVALUATION_MLOPS.md](docs/EVALUATION_MLOPS.md) — Évaluation MLOps
+- [docs/EVALUATION_AI_ENGINEER.md](docs/EVALUATION_AI_ENGINEER.md) — Évaluation AI Engineer
