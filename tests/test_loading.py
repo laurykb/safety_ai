@@ -5,8 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from cyberbullying.loading import binary_load_data, merge_datasets
-from cyberbullying.loading import ColumnNotFoundError
+from cyberbullying.loading import binary_load_data, merge_datasets, ColumnNotFoundError
 
 
 def test_merge_datasets_empty():
@@ -21,6 +20,7 @@ def test_merge_datasets(sample_binary_df):
 
 
 def test_binary_load_data_column_not_found():
+    # dataset sans colonne texte reconnaissable -> doit lever ColumnNotFoundError
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
         pd.DataFrame({"x": [1], "y": [0]}).to_csv(f.name, index=False)
         with pytest.raises(ColumnNotFoundError):
