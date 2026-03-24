@@ -1,4 +1,9 @@
-"""Module pour le fine-tuning des modèles Transformers (BERT/RoBERTa)."""
+"""Fine-tuning de modèles Transformers (BERT/RoBERTa) pour la classification.
+
+On utilise l'API Trainer de HuggingFace. L'idée : charger un modèle pré-entraîné,
+ajouter une tête de classification binaire, et fine-tuner sur nos données.
+Le GPU est utilisé automatiquement si disponible (fp16 activé dans ce cas).
+"""
 
 from __future__ import annotations
 
@@ -23,7 +28,7 @@ warnings.filterwarnings("ignore")
 
 
 class CyberbullyingDataset(Dataset):
-    """Dataset PyTorch pour le fine-tuning."""
+    """Dataset PyTorch pour le fine-tuning — wrapping standard HuggingFace."""
 
     def __init__(self, texts: list[str], labels: list[int], tokenizer, max_length: int = 128):
         self.texts = texts
@@ -37,7 +42,6 @@ class CyberbullyingDataset(Dataset):
     def __getitem__(self, idx):
         text = str(self.texts[idx])
         label = int(self.labels[idx])
-
         encoding = self.tokenizer(
             text,
             add_special_tokens=True,
@@ -46,7 +50,6 @@ class CyberbullyingDataset(Dataset):
             truncation=True,
             return_tensors="pt",
         )
-
         return {
             "input_ids": encoding["input_ids"].flatten(),
             "attention_mask": encoding["attention_mask"].flatten(),
@@ -55,21 +58,14 @@ class CyberbullyingDataset(Dataset):
 
 
 def compute_metrics(eval_pred):
-    """Calcule les métriques pour l'évaluation."""
+    """Métriques pour le Trainer HuggingFace (appelé à chaque eval_steps)."""
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
-
     precision, recall, f1, _ = precision_recall_fscore_support(
         labels, predictions, average="binary", zero_division=0
     )
     acc = accuracy_score(labels, predictions)
-
-    return {
-        "accuracy": acc,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-    }
+    return {"accuracy": acc, "precision": precision, "recall": recall, "f1": f1}
 
 
 def prepare_datasets(
@@ -81,18 +77,14 @@ def prepare_datasets(
     test_size: float = 0.2,
     random_state: int = 42,
 ) -> tuple[CyberbullyingDataset, CyberbullyingDataset]:
-    """Prépare les datasets d'entraînement et de validation."""
-
+    """Split train/val et crée les CyberbullyingDataset correspondants."""
     texts = df[text_column].astype(str).tolist()
     labels = df[label_column].astype(int).tolist()
-
     train_texts, val_texts, train_labels, val_labels = train_test_split(
         texts, labels, test_size=test_size, random_state=random_state, stratify=labels
     )
-
     train_dataset = CyberbullyingDataset(train_texts, train_labels, tokenizer, max_length)
     val_dataset = CyberbullyingDataset(val_texts, val_labels, tokenizer, max_length)
-
     return train_dataset, val_dataset
 
 
@@ -110,19 +102,16 @@ def finetune_transformer(
     logging_steps: int = 100,
     eval_steps: int = 500,
 ) -> tuple[Trainer, dict[str, Any]]:
-    """Fine-tune un modèle Transformer."""
-
-    # Charger le modèle
+    """Fine-tune un Transformer pour la classification binaire cyberbullying."""
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name,
         num_labels=2,
         ignore_mismatched_sizes=True,
     )
 
-    # GPU par défaut (mixed precision si disponible)
+    # fp16 si GPU dispo — divise par 2 la mémoire, accélère l'entraînement
     use_fp16 = torch.cuda.is_available()
 
-    # Configuration de l'entraînement
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         num_train_epochs=num_epochs,
@@ -145,7 +134,6 @@ def finetune_transformer(
         fp16=use_fp16,
     )
 
-    # Créer le Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -154,12 +142,8 @@ def finetune_transformer(
         compute_metrics=compute_metrics,
     )
 
-    # Entraîner le modèle
     trainer.train()
-
-    # Évaluation finale
     final_metrics = trainer.evaluate()
-
     return trainer, final_metrics
 
 
@@ -169,11 +153,9 @@ def predict_with_finetuned(
     batch_size: int = 32,
     max_length: int = 128,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Prédictions avec un modèle fine-tuné (GPU si disponible)."""
-
+    """Prédictions avec un modèle fine-tuné. Gère GPU/CPU automatiquement."""
     tokenizer = AutoTokenizer.from_pretrained(str(model_path))
     model = AutoModelForSequenceClassification.from_pretrained(str(model_path))
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     model.eval()
@@ -182,8 +164,7 @@ def predict_with_finetuned(
     all_probabilities = []
 
     for i in range(0, len(texts), batch_size):
-        batch_texts = texts[i : i + batch_size]
-
+        batch_texts = texts[i: i + batch_size]
         inputs = tokenizer(
             batch_texts,
             padding=True,
@@ -191,15 +172,12 @@ def predict_with_finetuned(
             max_length=max_length,
             return_tensors="pt",
         ).to(device)
-
         with torch.no_grad():
             outputs = model(**inputs)
             logits = outputs.logits
             probs = torch.softmax(logits, dim=1)
-
-        predictions = torch.argmax(logits, dim=1).cpu().numpy()
-        probabilities = probs.cpu().numpy()
-
+            predictions = torch.argmax(logits, dim=1).cpu().numpy()
+            probabilities = probs.cpu().numpy()
         all_predictions.extend(predictions)
         all_probabilities.extend(probabilities)
 
