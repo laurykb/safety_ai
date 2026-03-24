@@ -179,17 +179,6 @@ projet_IA_cyber/
 └── docs/
 ```
 
----
-
-## Compatibilité
-
-- **Python** : 3.11+
-- **OS** : Windows, Linux, macOS
-- **Chemins** : `pathlib.Path` pour compatibilité cross-platform
-- **Encodage** : UTF-8 recommandé
-
----
-
 ## Documentation
 
 - [docs/INTEGRATION_UI.md](docs/INTEGRATION_UI.md) — Pipeline vs Inference
